@@ -1084,6 +1084,10 @@
             box-shadow: 0 8px 25px rgba(39, 174, 96, 0.3);
         }
 
+        body.light-theme .comissao-hint {
+            color: #6c757d !important;
+        }
+
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-5px); }
@@ -1227,7 +1231,10 @@
                         <label for="ygorComissao">Comissão Ygor (R$):</label>
                         <input type="number" id="ygorComissao" step="0.01" min="0" max="999999" placeholder="0.00" aria-label="Valor da comissão do Ygor em reais" aria-describedby="ygorComissao-help">
                         <div class="error-message" id="ygorComissao-error" role="alert"></div>
-                        <div class="sr-only" id="ygorComissao-help">Digite o valor da comissão em reais</div>
+                        <div class="sr-only" id="ygorComissao-help">Digite o valor da comissão em reais (calculado automaticamente como 55% do faturamento)</div>
+                        <div class="comissao-hint" style="font-size: 0.8rem; color: #aaaaaa; margin-top: 5px;">
+                            💡 Calculado automaticamente como 55% do faturamento. Ajuste se houver venda de produtos.
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="ygorCA">Clientes atendidos Ygor:</label>
@@ -1314,6 +1321,28 @@
     <script>
         // Variáveis globais para armazenar dados
         let dadosCalculados = {};
+
+        // Função para calcular comissão automaticamente
+        function calcularComissaoYgor() {
+            const ygorFat = parseFloat(document.getElementById('ygorFat').value) || 0;
+            const ygorComissao = document.getElementById('ygorComissao');
+            
+            if (ygorFat > 0) {
+                const comissaoCalculada = ygorFat * 0.55;
+                ygorComissao.value = comissaoCalculada.toFixed(2);
+                
+                // Adicionar feedback visual temporário
+                ygorComissao.style.backgroundColor = 'rgba(39, 174, 96, 0.1)';
+                ygorComissao.style.borderColor = '#27ae60';
+                
+                setTimeout(() => {
+                    ygorComissao.style.backgroundColor = '';
+                    ygorComissao.style.borderColor = '';
+                }, 1500);
+            } else {
+                ygorComissao.value = '';
+            }
+        }
 
         // Função para validar entrada
         function validarCampo(campo, valor, tipo, min = 0, max = Infinity) {
@@ -1613,37 +1642,37 @@
                     titulo: 'Faturamento Total',
                     valor: `R$ ${formatarMoeda(dados.faturamento)}`,
                     subtitulo: 'Receita bruta do dia',
-                    classe: dados.faturamento > 1000 ? 'highlight' : ''
+                    classe: dados.faturamento > 1300 ? 'highlight' : dados.faturamento < 250 ? 'warning' : ''
                 },
                 {
                     titulo: 'Geração de Caixa',
                     valor: `R$ ${formatarMoeda(dados.geracaoCaixa)}`,
                     subtitulo: 'Lucro líquido',
-                    classe: dados.geracaoCaixa > 0 ? 'highlight' : 'warning'
+                    classe: dados.geracaoCaixa > 500 ? 'highlight' : dados.geracaoCaixa < 0 ? 'warning' : ''
                 },
                 {
                     titulo: 'Clientes Atendidos',
                     valor: dados.clientesAtendidos.toString(),
                     subtitulo: 'Total de atendimentos',
-                    classe: dados.clientesAtendidos > 20 ? 'highlight' : ''
+                    classe: dados.clientesAtendidos > 30 ? 'highlight' : dados.clientesAtendidos < 10 ? 'warning' : ''
                 },
                 {
                     titulo: 'Ticket Médio',
                     valor: `R$ ${formatarMoeda(dados.ticketMedio)}`,
                     subtitulo: 'Valor médio por cliente',
-                    classe: dados.ticketMedio > 50 ? 'highlight' : ''
+                    classe: dados.ticketMedio > 40 ? 'highlight' : dados.ticketMedio < 20 ? 'warning' : ''
                 },
                 {
                     titulo: 'Taxa de Ocupação',
                     valor: `${formatarPercentual(dados.taxaOcupacao)}%`,
                     subtitulo: 'Capacidade utilizada',
-                    classe: dados.taxaOcupacao > 80 ? 'highlight' : dados.taxaOcupacao < 50 ? 'warning' : ''
+                    classe: ''
                 },
                 {
                     titulo: 'Clientes Novos',
                     valor: dados.clientesNovos.toString(),
                     subtitulo: 'Novos clientes captados',
-                    classe: dados.clientesNovos > 5 ? 'highlight' : ''
+                    classe: dados.clientesNovos > 3 ? 'highlight' : dados.clientesNovos === 0 ? 'warning' : ''
                 }
             ];
             
@@ -2021,6 +2050,16 @@
                 'totalDespesas'
             ];
             
+            // Adicionar listener específico para o campo de faturamento do Ygor
+            document.getElementById('ygorFat').addEventListener('input', function() {
+                calcularComissaoYgor();
+            });
+            
+            // Também calcular quando o campo perde o foco
+            document.getElementById('ygorFat').addEventListener('blur', function() {
+                calcularComissaoYgor();
+            });
+
             const inputs = document.querySelectorAll('input');
             inputs.forEach((input, index) => {
                 // Listener para Enter - navegar para próximo campo
@@ -2171,16 +2210,84 @@
                     { titulo: 'Clientes Novos', valor: dadosCalculados.totais.clientesNovos.toString() }
                 ];
                 
-                // Desenhar métricas em grid compacto
+                // Desenhar métricas em grid compacto com cores
                 for (let i = 0; i < metricas.length; i++) {
                     const col = i % 3;
                     const row = Math.floor(i / 3);
                     const x = padding + col * (cardWidth + padding);
                     const y = currentY + row * 100;
                     
+                    // Determinar cor do indicador baseado no valor
+                    let corIndicador = cardBorder; // Cor padrão
+                    let corValor = textColor; // Cor padrão do texto
+                    
+                    if (i === 0) { // Faturamento Total
+                        if (dadosCalculados.totais.faturamento > 1300) {
+                            corIndicador = '#27ae60'; // Verde
+                            corValor = '#27ae60';
+                        } else if (dadosCalculados.totais.faturamento >= 250) {
+                            corIndicador = cardBorder; // Normal
+                            corValor = textColor;
+                        } else {
+                            corIndicador = '#e74c3c'; // Vermelho
+                            corValor = '#e74c3c';
+                        }
+                    } else if (i === 1) { // Geração de Caixa
+                        if (dadosCalculados.totais.geracaoCaixa > 500) {
+                            corIndicador = '#27ae60'; // Verde
+                            corValor = '#27ae60';
+                        } else if (dadosCalculados.totais.geracaoCaixa >= 0) {
+                            corIndicador = cardBorder; // Normal
+                            corValor = textColor;
+                        } else {
+                            corIndicador = '#e74c3c'; // Vermelho
+                            corValor = '#e74c3c';
+                        }
+                    } else if (i === 2) { // Clientes Atendidos
+                        if (dadosCalculados.totais.clientesAtendidos > 30) {
+                            corIndicador = '#27ae60'; // Verde
+                            corValor = '#27ae60';
+                        } else if (dadosCalculados.totais.clientesAtendidos >= 10) {
+                            corIndicador = cardBorder; // Normal
+                            corValor = textColor;
+                        } else {
+                            corIndicador = '#e74c3c'; // Vermelho
+                            corValor = '#e74c3c';
+                        }
+                    } else if (i === 3) { // Ticket Médio
+                        if (dadosCalculados.totais.ticketMedio > 40) {
+                            corIndicador = '#27ae60'; // Verde
+                            corValor = '#27ae60';
+                        } else if (dadosCalculados.totais.ticketMedio >= 20) {
+                            corIndicador = cardBorder; // Normal
+                            corValor = textColor;
+                        } else {
+                            corIndicador = '#e74c3c'; // Vermelho
+                            corValor = '#e74c3c';
+                        }
+                    } else if (i === 4) { // Taxa de Ocupação - mantém critério original
+                        corIndicador = cardBorder; // Normal
+                        corValor = textColor;
+                    } else if (i === 5) { // Clientes Novos
+                        if (dadosCalculados.totais.clientesNovos > 3) {
+                            corIndicador = '#27ae60'; // Verde
+                            corValor = '#27ae60';
+                        } else if (dadosCalculados.totais.clientesNovos > 0) {
+                            corIndicador = cardBorder; // Normal
+                            corValor = textColor;
+                        } else {
+                            corIndicador = '#e74c3c'; // Vermelho
+                            corValor = '#e74c3c';
+                        }
+                    }
+                    
                     // Fundo do card
                     ctx.fillStyle = cardBg;
                     ctx.fillRect(x, y, cardWidth, 85);
+                    
+                    // Borda colorida do indicador (esquerda)
+                    ctx.fillStyle = corIndicador;
+                    ctx.fillRect(x, y, 4, 85);
                     
                     // Borda do card
                     ctx.strokeStyle = cardBorder;
@@ -2192,8 +2299,8 @@
                     ctx.font = '11px "Segoe UI", sans-serif';
                     ctx.fillText(metricas[i].titulo.toUpperCase(), x + 12, y + 20);
                     
-                    // Valor da métrica
-                    ctx.fillStyle = textColor;
+                    // Valor da métrica com cor do indicador
+                    ctx.fillStyle = corValor;
                     ctx.font = 'bold 20px "Segoe UI", sans-serif';
                     ctx.fillText(metricas[i].valor, x + 12, y + 50);
                 }
@@ -2449,5 +2556,5 @@
             }
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96eb45315408cb3c',t:'MTc1NTEyMDE3Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97685361434ee0f9',t:'MTc1NjQzMTQ3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
